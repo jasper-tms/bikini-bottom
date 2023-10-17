@@ -93,7 +93,7 @@ def run_tasks_locally(n_cores=16):
     tq = LocalTaskQueue(parallel=n_cores)
     tasks = tc.create_downsampling_tasks(
         cloud_path,
-        mip=2,             # Starting mip
+        mip=0,             # Starting mip
         num_mips=num_mips, # Final mip to downsample to
         bounds=bounds,
         factor=factor,
