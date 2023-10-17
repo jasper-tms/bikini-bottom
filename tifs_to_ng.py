@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+# Based loosely on example code from
+# https://github.com/seung-lab/cloud-volume/wiki/Example-Single-Machine-Dataset-Upload
+
+# Given the name of a folder (and optionally a metadata file), convert
+# all the tifs inside it to neuroglancer precomputed format.
+#
+# Usage: ./tifs_to_ng.py [folder] [metadata_file]
+# Result: A new cloudvolume will be created at gs://blanke-ramdya-flyct/[folder]
+# 
+# The metadata file must be in json format, and should contain a dictionary
+# with any number of the following keys:
+# - owners: a list of names/email addresses/homepage urls of the owners of the dataset
+# - description: a string describing the dataset
+# - voxel_size_nm: a list of 3 numbers, the size of a voxel in nanometers
+# - chunk_size: a list of 3 numbers, the size of a chunk in voxels
+# - invert: a boolean, whether to invert the black and white of the images
+# - n_mips: an integer, the number of mips (downsamplings of the image) to generate
+# If any are not specified, default values will be used. See the default values
+# in the script below.
+
+import sys
+import os
+import json
+import math
+from glob import glob
+from concurrent.futures import ProcessPoolExecutor
+
+
+import numpy as np
+from cloudvolume import CloudVolume
+from cloudvolume.lib import touch
+import npimage
+import npimage.operations
+from tqdm import tqdm
+
+import bikinibottom
+
+
+cloud_bucket = 'gs://your-bucket'
+default_metadata = dict(
+    owners=['jasper.s.phelps@gmail.com']
+    description=("No description provided."
+                 " Source folder name: {img_folder}"),
+    voxel_size_nm=(1, 1, 1),
+    encoding='jpeg',
+    chunk_size=(128, 128, 128),
+    invert=False,
+    n_mips=3
+)
+
+img_folder = sys.argv[1]
+assert os.path.isdir(img_folder), 'First argument is not a folder'
+img_filenames = glob(f'{img_folder}/*.tif')
+img_filenames.sort()
+
+# Metadata
+if len(sys.argv) > 2:
+    metadata_fn = sys.argv[2]
+    if not os.path.isfile(metadata_fn):
+        raise FileNotFoundError(f'Metadata file not found: {metadata_fn}')
+else:
+    metadata_fn = os.path.join(img_folder, 'metadata.json')
+metadata = default_metadata.copy()
+# Open the metadata file (json format), and update the default metadata with
+# whatever is in the file.
+if not os.path.isfile(metadata_fn):
+    print('WARNING: Default metadata will be used since metadata.json was'
+          ' not found in the data folder.')
+else:
+    with open(metadata_fn, 'r') as f:
+        metadata.update(json.load(f))
+if '{img_folder}' not in metadata['description']:
+    metadata['description'] = metadata['description'] + " Source folder name: {img_folder}"
+print('Metadata:')
+print(json.dumps(metadata, indent=2))
+
+# Determine source data properties
+shape_z = len(img_filenames)
+first_im = npimage.open(img_filenames[0], dim_order='xy')
+shape_x, shape_y = first_im.shape
+shape = (shape_x, shape_y, shape_z)
+source_dtype = first_im.dtype
+
+# Create a new cloudvolume
+info = CloudVolume.create_new_info(
+    num_channels = 1,
+    layer_type = 'image', # 'image' or 'segmentation'
+    data_type = 'uint8', # can pick any popular uint
+    encoding = metadata['encoding'], # other options: 'jpeg', 'compressed_segmentation' (req. uint32 or uint64)
+    resolution = metadata['voxel_size_nm'], # X,Y,Z values in nanometers
+    voxel_offset = [0, 0, 0], # values X,Y,Z values in voxels
+    chunk_size = metadata['chunk_size'], # rechunk of image X,Y,Z in voxels
+    volume_size = shape, # X,Y,Z size in voxels
+)
+cloud_path = cloud_bucket + '/' + img_folder.rstrip('/') + '.raw.ng'
+print(f'Opening a cloudvolume at {cloud_path}')
+vol = CloudVolume(cloud_path, info=info, parallel=8)
+vol.provenance.description = metadata['description'].format(img_folder=img_folder)
+vol.provenance.owners = metadata['owners']
+vol.commit_info() # generates gs://bucket/dataset/info json file
+vol.commit_provenance() # generates gs://bucket/dataset/provenance json
+
+
+# Load image data from a series of tifs
+data = np.zeros(shape + (1,), dtype=source_dtype)
+for z, fn in enumerate(tqdm(img_filenames)):
+    data[:, :, z, 0] = npimage.open(fn, dim_order='xy')
+if data.dtype == np.uint16:
+    print('Converting from uint16 to uint8')
+    try:
+        clip_range = metadata['8bit_range']
+    except:
+        # If clip range is not specified, npimage.operations.to_8bit will
+        # by default use the 0.4th percentile and the 99.6th percentile, which
+        # is reasonable
+        clip_range = [None, None]
+    data = npimage.operations.to_8bit(data, bottom_value=clip_range[0], top_value=clip_range[1])
+if not data.dtype == np.uint8:
+    raise ValueError(f'Expected data to be uint8, but it was {data.dtype}')
+
+if metadata.get('invert', False):
+    print('Inverting black and white')
+    data = 255 - data
+
+
+# Upload the data to the cloudvolume
+vol[:] = data[:]
+# Generate downsampling levels if requested
+for mip in range(metadata['n_mips']):
+    print(f'Downsampling to mip {mip+1} of {metadata["n_mips"]}')
+    data = bikinibottom.downsample_cloudvolume(vol, data=data, return_downsampled_data=True)

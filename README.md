@@ -1,2 +1,4 @@
 # bikini-bottom
-Cloudvolume/igneous scripts. We take pixels from one place and push them to other places.
+Scripts to manipulate cloudvolumes.
+
+[Inspired by Patrick Star](https://www.youtube.com/watch?v=A_pTGhOyPbw), we should take pixels from a cloudvolume and push it somewhere else.
