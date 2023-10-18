@@ -95,6 +95,29 @@ def downsample_cloudvolume(vol: [CloudVolume, str], data=None, return_downsample
         return data_downsampled
 
 
+def mesh_array(data: np.ndarray, threshold,
+               save_to_filename=None) -> trimesh.Trimesh or None:
+    """
+    Generate a mesh from a numpy array.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        The array to mesh.
+    threshold : float
+        The threshold to use for the marching cubes algorithm.
+    save_to_filename : str, optional
+        If provided, the mesh will be saved to this file. Otherwise, the
+        mesh will be returned.
+    """
+    verts, faces, _, _ = skimage.measure.marching_cubes(data, threshold)
+    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+    if save_to_filename is None:
+        return mesh
+    else:
+        mesh.export(save_to_filename)
+
+
 def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
                      save_to_filename=None) -> trimesh.Trimesh or None:
     """
@@ -126,13 +149,8 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
     vol.mip = mip
 
     data = np.array(vol[:].squeeze())
+    return mesh_array(data, threshold, save_to_filename=save_to_filename)
 
-    verts, faces, _, _ = skimage.measure.marching_cubes(data, threshold)
-    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
-    if save_to_filename is None:
-        return mesh
-    else:
-        mesh.export(save_to_filename)
 
 def push_mesh(mesh: trimesh.Trimesh or str,
               mesh_id: int,
