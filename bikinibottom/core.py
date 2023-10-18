@@ -4,6 +4,8 @@ import numpy as np
 import skimage
 import trimesh
 from cloudvolume import CloudVolume
+import cloudvolume.exceptions
+import cloudvolume.mesh
 import npimage
 import npimage.operations
 
@@ -131,3 +133,70 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
         return mesh
     else:
         mesh.export(save_to_filename)
+
+def push_mesh(mesh: trimesh.Trimesh or str,
+              mesh_id: int,
+              vol: CloudVolume or str,
+              scale_by: float = 1):
+    """
+    Upload a mesh representing the outline of some bit of an image volume
+    to a cloudvolume that can be loaded alongside that image volume.
+
+    If the given CloudVolume is a segmentation volume, the mesh will be
+    uploaded directly to it. If the given volume is an image volume, a new
+    segmentation-type CloudVolume will be created in a subfolder of that image
+    cloudvolume named "meshes/" and the mesh will be uploaded there.
+
+    Parameters
+    ----------
+    mesh : trimesh.Trimesh or str
+        The mesh to upload. If a string is provided, it will be interpreted
+        as the path to a mesh file.
+    mesh_id : int
+        The id of the mesh. This is the segment ID that will need to be entered
+        into neuroglancer to load the mesh.
+    vol : CloudVolume or str
+        The cloudvolume to upload the mesh to. If a string is provided, it will
+        be interpreted as the path to a cloudvolume.
+    scale_by : float, optional
+        The scale factor to apply to the mesh before uploading it. This is
+        useful if the mesh was generated from a downsampled version of the
+        image volume, but you want to upload it to the full resolution image
+        volume. The default is 1, which means no scaling will be applied.
+    """
+
+    if isinstance(vol, str):
+        vol = CloudVolume(vol)
+    if vol.layer_type == 'image':
+        try:
+            vol = CloudVolume(vol.cloudpath + '/meshes')
+        except cloudvolume.exceptions.InfoUnavailableError:
+            info = CloudVolume.create_new_info(
+                num_channels=vol.num_channels,
+                layer_type='segmentation',
+                mesh='meshes',
+                data_type='uint8',
+                encoding='raw',
+                resolution=vol.resolution,
+                voxel_offset=vol.voxel_offset,
+                # Since we won't be storing any segmentation data here, just
+                # make one big chunk to reduce the number of requests that
+                # neuroglancer would make for segmentation data.
+                chunk_size=vol.volume_size,
+                volume_size=vol.volume_size,
+            )
+            vol = CloudVolume(vol.cloudpath + '/meshes', info=info)
+            vol.commit_info()
+
+    assert vol.layer_type == 'segmentation'
+
+    if isinstance(mesh, str):
+        mesh = trimesh.load(mesh)
+
+    mesh = cloudvolume.mesh.Mesh(
+        mesh.vertices * scale_by,
+        mesh.faces,
+        segid=mesh_id
+    )
+    # I should investigate whether compress=True would be an improvement.
+    vol.mesh.put(mesh, compress=False)
