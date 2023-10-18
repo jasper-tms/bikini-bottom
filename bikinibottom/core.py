@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+import numpy as np
+import skimage
+import trimesh
 from cloudvolume import CloudVolume
-
 import npimage
 import npimage.operations
 
@@ -89,3 +91,43 @@ def downsample_cloudvolume(vol: [CloudVolume, str], data=None, return_downsample
 
     if return_downsampled_data:
         return data_downsampled
+
+
+def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
+                     save_to_filename=None) -> trimesh.Trimesh or None:
+    """
+    Generate a mesh from a cloudvolume.
+
+    Parameters
+    ----------
+    vol : CloudVolume or str
+        The cloudvolume to mesh. If a string is provided, it will be
+        interpreted as the path to a cloudvolume.
+    threshold : float
+        The threshold to use for the marching cubes algorithm.
+    mip : int, optional
+        The mip level to use. If not provided, the highest available mip
+        will be used.
+    save_to_filename : str, optional
+        If provided, the mesh will be saved to this file. Otherwise, the
+        mesh will be returned.
+
+    Returns
+    -------
+    If save_to_filename is None, the mesh will be returned. Otherwise, None
+    will be returned.
+    """
+    if isinstance(vol, str):
+        vol = CloudVolume(vol)
+    if mip is None:
+        mip = vol.available_mips[-1]
+    vol.mip = mip
+
+    data = np.array(vol[:].squeeze())
+
+    verts, faces, _, _ = skimage.measure.marching_cubes(data, threshold)
+    mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+    if save_to_filename is None:
+        return mesh
+    else:
+        mesh.export(save_to_filename)

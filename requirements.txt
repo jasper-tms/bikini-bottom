@@ -1,3 +1,4 @@
 cloud-volume
 igneous-pipeline
 numpyimage
+scikit-image
