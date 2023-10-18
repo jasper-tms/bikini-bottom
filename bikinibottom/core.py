@@ -50,7 +50,7 @@ def compress_raw_cloudvolume(source_path, target_path=None):
             target[tuple(slices)] = chunk
 
 
-def downsample_cloudvolume(vol: CloudVolume, data=None, return_downsampled_data=False):
+def downsample_cloudvolume(vol: [CloudVolume, str], data=None, return_downsampled_data=False):
     """
     Downsample the image data in a cloudvolume by a factor of 2 in x, y, and z.
 
@@ -67,6 +67,8 @@ def downsample_cloudvolume(vol: CloudVolume, data=None, return_downsampled_data=
     >>> for iteration in range(num_of_downsamplings):
     >>>     data = downsample_cloudvolume(vol, data=data, return_downsampled_data=True)
     """
+    if isinstance(vol, str):
+        vol = CloudVolume(vol)
     vol.mip = vol.available_mips[-1]
     print(f'Current mip: {vol.mip}')
     print(f'Will generate mip {vol.mip + 1} = scale {(2**(vol.mip+1),)*3}')
