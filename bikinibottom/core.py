@@ -155,7 +155,8 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
 def push_mesh(mesh: trimesh.Trimesh or str,
               mesh_id: int,
               vol: CloudVolume or str,
-              scale_by: float = 1):
+              scale_by: float = 1,
+              compress=False):
     """
     Upload a mesh representing the outline of some bit of an image volume
     to a cloudvolume that can be loaded alongside that image volume.
@@ -216,5 +217,4 @@ def push_mesh(mesh: trimesh.Trimesh or str,
         mesh.faces,
         segid=mesh_id
     )
-    # I should investigate whether compress=True would be an improvement.
-    vol.mesh.put(mesh, compress=False)
+    vol.mesh.put(mesh, compress=compress)
