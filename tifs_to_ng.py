@@ -13,9 +13,9 @@
 # - owners: a list of names/email addresses/homepage urls of the owners of the dataset
 # - description: a string describing the dataset
 # - voxel_size_nm: a list of 3 numbers, the size of a voxel in nanometers
-# - chunk_size: a list of 3 numbers, the size of a chunk in voxels
-# - invert: a boolean, whether to invert the black and white of the images
-# - n_mips: an integer, the number of mips (downsamplings of the image) to generate
+# - chunk_size: a list of 3 integers, the size of a chunk in voxels
+# - invert: a boolean, whether to invert black and white in the images
+# - num_mips: an integer, the number of mips (downsamplings of the image) to generate
 # If any are not specified, default values will be used. See the default values
 # in the script below.
 
@@ -39,14 +39,14 @@ import bikinibottom
 
 cloud_bucket = 'gs://your-bucket'
 default_metadata = dict(
-    owners=['jasper.s.phelps@gmail.com']
+    owners=['jasper.s.phelps@gmail.com'],
     description=("No description provided."
                  " Source folder name: {img_folder}"),
     voxel_size_nm=(1, 1, 1),
     encoding='jpeg',
     chunk_size=(128, 128, 128),
     invert=False,
-    n_mips=3
+    num_mips=3
 )
 
 img_folder = sys.argv[1]
@@ -93,7 +93,7 @@ info = CloudVolume.create_new_info(
     chunk_size = metadata['chunk_size'], # rechunk of image X,Y,Z in voxels
     volume_size = shape, # X,Y,Z size in voxels
 )
-cloud_path = cloud_bucket + '/' + img_folder.rstrip('/') + '.raw.ng'
+cloud_path = cloud_bucket + '/' + img_folder.rstrip('/') + '.' + metadata['encoding'] + '.ng'
 print(f'Opening a cloudvolume at {cloud_path}')
 vol = CloudVolume(cloud_path, info=info, parallel=8)
 vol.provenance.description = metadata['description'].format(img_folder=img_folder)
@@ -127,6 +127,6 @@ if metadata.get('invert', False):
 # Upload the data to the cloudvolume
 vol[:] = data[:]
 # Generate downsampling levels if requested
-for mip in range(metadata['n_mips']):
-    print(f'Downsampling to mip {mip+1} of {metadata["n_mips"]}')
+for mip in range(metadata['num_mips']):
+    print(f'Downsampling to mip {mip+1} of {metadata["num_mips"]}')
     data = bikinibottom.downsample_cloudvolume(vol, data=data, return_downsampled_data=True)
