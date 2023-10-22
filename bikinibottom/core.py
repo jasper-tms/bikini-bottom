@@ -156,7 +156,7 @@ def push_mesh(mesh: trimesh.Trimesh or str,
               mesh_id: int,
               vol: CloudVolume or str,
               scale_by: float = 1,
-              compress=False):
+              compress=True):
     """
     Upload a mesh representing the outline of some bit of an image volume
     to a cloudvolume that can be loaded alongside that image volume.
