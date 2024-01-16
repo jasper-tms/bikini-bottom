@@ -27,7 +27,7 @@ def compress_raw_cloudvolume(source_path, target_path=None):
         volume_size = source.volume_size,
     )
 
-    tprint(f'Compressing {source_path} to {target_path}')
+    print(f'Compressing {source_path} to {target_path}')
     target = CloudVolume(target_path, info=target_info)
     target.commit_info()
 
