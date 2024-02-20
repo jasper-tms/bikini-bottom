@@ -112,7 +112,7 @@ if data.dtype == np.uint16:
         clip_range = metadata['8bit_range']
     except:
         # If clip range is not specified, npimage.operations.to_8bit will
-        # by default use the 0.4th percentile and the 99.6th percentile, which
+        # by default use the 0.05th percentile and the 99.95th percentile, which
         # is reasonable
         clip_range = [None, None]
     data = npimage.operations.to_8bit(data, bottom_value=clip_range[0], top_value=clip_range[1])
