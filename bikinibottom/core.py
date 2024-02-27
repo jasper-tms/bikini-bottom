@@ -71,25 +71,32 @@ def downsample_cloudvolume(vol: [CloudVolume, str], data=None, return_downsample
     >>> for iteration in range(num_of_downsamplings):
     >>>     data = downsample_cloudvolume(vol, data=data, return_downsampled_data=True)
     """
+    original_mip = None
     if isinstance(vol, str):
         vol = CloudVolume(vol)
+    elif hasattr(vol, 'mip'):
+        original_mip = vol.mip
     vol.mip = vol.available_mips[-1]
     print(f'Current mip: {vol.mip}')
     print(f'Will generate mip {vol.mip + 1} = scale {(2**(vol.mip+1),)*3}')
-    vol.add_scale((2**(vol.mip+1),)*3, chunk_size=vol.chunk_size)
-    vol.commit_info()
-    if data is None:
-        data = vol[:]
-    if not data.shape == vol.shape:
-        raise ValueError(f'Expected data to have shape {vol.shape}, but'
-                         f' it had shape {data.shape}.')
+    try:
+        vol.add_scale((2**(vol.mip+1),)*3, chunk_size=vol.chunk_size)
+        vol.commit_info()
+        if data is None:
+            data = vol[:]
+        if not data.shape == vol.shape:
+            raise ValueError(f'Expected data to have shape {vol.shape}, but'
+                             f' it had shape {data.shape}.')
 
-    data_downsampled = npimage.operations.downsample(data, factor=2)
+        data_downsampled = npimage.operations.downsample(data, factor=2)
 
-    vol.mip += 1
-    assert vol.mip == vol.available_mips[-1]
-    assert vol.shape == data_downsampled.shape
-    vol[:] = data_downsampled
+        vol.mip += 1
+        assert vol.mip == vol.available_mips[-1]
+        assert vol.shape == data_downsampled.shape
+        vol[:] = data_downsampled
+    finally:
+        if original_mip is not None:
+            vol.mip = original_mip
 
     if return_downsampled_data:
         return data_downsampled
@@ -142,14 +149,26 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
     If save_to_filename is None, the mesh will be returned. Otherwise, None
     will be returned.
     """
+    original_mip = None
     if isinstance(vol, str):
         vol = CloudVolume(vol)
+    elif hasattr(vol, 'mip'):
+        original_mip = vol.mip
     if mip is None:
         mip = vol.available_mips[-1]
     vol.mip = mip
+    try:
+        data = np.array(vol[:].squeeze())
+        mesh =  mesh_array(data, threshold,
+                           discard_small_components=discard_small_components,
+                           save_to_filename=save_to_filename)
+        # Scale vertex coordinates to use physical units (usually nanometers)
+        mesh.vertices = mesh.vertices * vol.resolution
 
-    data = np.array(vol[:].squeeze())
-    return mesh_array(data, threshold, save_to_filename=save_to_filename)
+    finally:
+        if original_mip is not None:
+            vol.mip = original_mip
+    return mesh
 
 
 def push_mesh(mesh: trimesh.Trimesh or str,
