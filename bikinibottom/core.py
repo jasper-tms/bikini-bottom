@@ -103,6 +103,7 @@ def downsample_cloudvolume(vol: [CloudVolume, str], data=None, return_downsample
 
 
 def mesh_array(data: np.ndarray, threshold,
+               discard_small_components=False,
                save_to_filename=None) -> trimesh.Trimesh or None:
     """
     Generate a mesh from a numpy array.
@@ -113,12 +114,18 @@ def mesh_array(data: np.ndarray, threshold,
         The array to mesh.
     threshold : float
         The threshold to use for the marching cubes algorithm.
+    discard_small_components : bool, optional
+        If True, only the single largest connected component of the mesh
+        will be returned. Otherwise, the entire mesh will be returned.
     save_to_filename : str, optional
         If provided, the mesh will be saved to this file. Otherwise, the
         mesh will be returned.
     """
     verts, faces, _, _ = skimage.measure.marching_cubes(data, threshold)
     mesh = trimesh.Trimesh(vertices=verts, faces=faces)
+    if discard_small_components:
+        components = mesh.split(only_watertight=False)
+        mesh = max(components, key=lambda component: len(component.faces))
     if save_to_filename is None:
         return mesh
     else:
@@ -126,6 +133,7 @@ def mesh_array(data: np.ndarray, threshold,
 
 
 def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
+                     discard_small_components=False,
                      save_to_filename=None) -> trimesh.Trimesh or None:
     """
     Generate a mesh from a cloudvolume.
@@ -140,6 +148,9 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
     mip : int, optional
         The mip level to use. If not provided, the highest available mip
         will be used.
+    discard_small_components : bool, optional
+        If True, only the single largest connected component of the mesh
+        will be returned. Otherwise, the entire mesh will be returned.
     save_to_filename : str, optional
         If provided, the mesh will be saved to this file. Otherwise, the
         mesh will be returned.
