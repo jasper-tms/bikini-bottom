@@ -2,13 +2,23 @@
 # Based loosely on example code from
 # https://github.com/seung-lab/cloud-volume/wiki/Example-Single-Machine-Dataset-Upload
 
+# Usage: ./tifs_to_ng.py [folder] [metadata_file]
 # Given the name of a folder (and optionally a metadata file), convert
 # all the tifs inside it to neuroglancer precomputed format.
 #
-# Usage: ./tifs_to_ng.py [folder] [metadata_file]
-# Result: A new cloudvolume will be created at gs://blanke-ramdya-flyct/[folder]
-# 
-# The metadata file must be in json format, and should contain a dictionary
+# Result: A new dataset will be created at [target_root]/[folder].ng.
+# target_root is specified in the script below, so be sure to set it to
+# the desired data location. It can be either a local path or a path
+# to a google cloud storage bucket.
+
+# The metadata can be provided as a file named metadata.json in the
+# same folder as the tifs, or a different filename specified as the second
+# command line argument of this script. If no metadata file is provided,
+# default metadata hardcoded in this script will be used.
+# For any metadata that is required but not provided in the metadata file,
+# the default hardcoded values will be used.
+#
+# If you provide a metadata file it must be in json format,
 # with any number of the following keys:
 # - owners: a list of names/email addresses/homepage urls of the owners of the dataset
 # - description: a string describing the dataset
@@ -36,10 +46,16 @@ from tqdm import tqdm
 
 import bikinibottom
 
+# This creates a dataset on google cloud storage. You must have already
+# set up the bucket and you must have permissions to write to it (see
+# the cloudvolume wiki for instructions on how to set up a bucket).
+#target_root = 'gs://your-google-cloud-storage-bucket'
+# This creates a dataset on your computer, adjacent to the folder
+# containing your tifs
+target_root = 'file://.'
 
-cloud_bucket = 'gs://your-bucket'
 default_metadata = dict(
-    owners=['jasper.s.phelps@gmail.com'],
+    owners=['Your Name <your.email@foo.com>'],
     description=("No description provided."
                  " Source folder name: {img_folder}"),
     voxel_size_nm=(1, 1, 1),
@@ -93,9 +109,9 @@ info = CloudVolume.create_new_info(
     chunk_size = metadata['chunk_size'], # rechunk of image X,Y,Z in voxels
     volume_size = shape, # X,Y,Z size in voxels
 )
-cloud_path = cloud_bucket + '/' + img_folder.rstrip('/') + '.' + metadata['encoding'] + '.ng'
-print(f'Opening a cloudvolume at {cloud_path}')
-vol = CloudVolume(cloud_path, info=info, parallel=8)
+target_path = target_root + '/' + img_folder.rstrip('/') + '.' + metadata['encoding'] + '.ng'
+print(f'Opening a cloudvolume at {target_path}')
+vol = CloudVolume(target_path, info=info) #, parallel=8)
 vol.provenance.description = metadata['description'].format(img_folder=img_folder)
 vol.provenance.owners = metadata['owners']
 vol.commit_info() # generates gs://bucket/dataset/info json file
