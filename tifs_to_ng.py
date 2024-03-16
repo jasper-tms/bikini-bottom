@@ -119,18 +119,18 @@ vol.commit_provenance() # generates gs://bucket/dataset/provenance json
 
 
 # Load image data from a series of tifs
-data = np.zeros(shape + (1,), dtype=source_dtype)
+data = []
 for z, fn in enumerate(tqdm(img_filenames)):
-    data[:, :, z, 0] = npimage.open(fn, dim_order='xy')
+    data.append(npimage.open(fn, dim_order='xy'))
+data = np.stack(data, axis=2)
+data = data[:, :, :, None] # Add a channel dimension
 if data.dtype == np.uint16:
     print('Converting from uint16 to uint8')
-    try:
-        clip_range = metadata['8bit_range']
-    except:
-        # If clip range is not specified, npimage.operations.to_8bit will
-        # by default use the 0.05th percentile and the 99.95th percentile, which
-        # is reasonable
-        clip_range = [None, None]
+    # If clip_range is not specified, npimage.operations.to_8bit will
+    # by default use the 0.05th percentile and the 99.95th percentile, which
+    # is reasonable
+    clip_range = metadata.get('8bit_range', [None, None])
+    print(f'Using clip range: {clip_range}')
     data = npimage.operations.to_8bit(data, bottom_value=clip_range[0], top_value=clip_range[1])
 if not data.dtype == np.uint8:
     raise ValueError(f'Expected data to be uint8, but it was {data.dtype}')
