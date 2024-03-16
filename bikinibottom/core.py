@@ -182,7 +182,7 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
     return mesh
 
 
-def push_mesh(mesh: trimesh.Trimesh or str,
+def push_mesh(mesh: str or trimesh.Trimesh or DracoPy.DracoMesh,
               mesh_id: int,
               vol: CloudVolume or str,
               scale_by: float = 1,
@@ -198,7 +198,7 @@ def push_mesh(mesh: trimesh.Trimesh or str,
 
     Parameters
     ----------
-    mesh : trimesh.Trimesh or str
+    mesh : str or trimesh.Trimesh or DracoPy.DracoMesh
         The mesh to upload. If a string is provided, it will be interpreted
         as the path to a mesh file.
     mesh_id : int
@@ -242,8 +242,16 @@ def push_mesh(mesh: trimesh.Trimesh or str,
     if isinstance(mesh, str):
         mesh = trimesh.load(mesh)
 
+    if hasattr(mesh, 'vertices'):
+        vertices = mesh.vertices
+    elif hasattr(mesh, 'points'):
+        vertices = mesh.points
+    else:
+        raise ValueError('The mesh provided does not have a "vertices"'
+                         ' or "points" attribute.')
+
     mesh = cloudvolume.mesh.Mesh(
-        mesh.vertices * scale_by,
+        vertices * scale_by,
         mesh.faces,
         segid=mesh_id
     )
