@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from typing import Union, Optional
+
 import numpy as np
 import skimage
 import trimesh
@@ -7,24 +9,44 @@ from cloudvolume import CloudVolume
 import cloudvolume.exceptions
 import cloudvolume.mesh
 import npimage
-import npimage.operations
 
 
-def compress_raw_cloudvolume(source_path, target_path=None):
+def compress_raw_cloudvolume(source_path: str,
+                             target_path: Optional[str] = None):
+    """
+    Make a copy of a raw (uncompressed or lossless compressed) cloudvolume
+    that is jpeg compressed (lossily compressed).
+
+    Parameters
+    ----------
+    source_path : str
+        The path to the source cloudvolume. This should be a path to a
+        cloudvolume that is raw (uncompressed or lossless compressed).
+
+    target_path : str, optional
+        The path to the target cloudvolume. If not provided, the target
+        cloudvolume will be saved in the same directory as the source
+        cloudvolume, with the same name, but with the extension changed to
+        ".jpeg.ng".
+    """
     source = CloudVolume(source_path)
     assert source.encoding == 'raw'
     if target_path is None:
-        assert source_path.endswith('.raw.ng')
-        target_path = source_path.replace('.raw.ng', '.jpeg.ng')
+        if source_path.endswith('.raw.ng'):
+            target_path = source_path.replace('.raw.ng', '.jpeg.ng')
+        elif source_path.endswith('.ng'):
+            target_path = source_path.replace('.ng', '.jpeg.ng')
+        else:
+            target_path = source_path + '.jpeg.ng'
     target_info = CloudVolume.create_new_info(
-        num_channels = source.num_channels,
-        layer_type = 'image',
-        data_type = source.data_type,
-        encoding = 'jpeg',
-        resolution = source.resolution,
-        voxel_offset = source.voxel_offset,
-        chunk_size = source.chunk_size,
-        volume_size = source.volume_size,
+        num_channels=source.num_channels,
+        layer_type='image',
+        data_type=source.data_type,
+        encoding='jpeg',
+        resolution=source.resolution,
+        voxel_offset=source.voxel_offset,
+        chunk_size=source.chunk_size,
+        volume_size=source.volume_size,
     )
 
     print(f'Compressing {source_path} to {target_path}')
@@ -54,18 +76,21 @@ def compress_raw_cloudvolume(source_path, target_path=None):
             target[tuple(slices)] = chunk
 
 
-def downsample_cloudvolume(vol: [CloudVolume, str], data=None, return_downsampled_data=False):
+def downsample_cloudvolume(vol: Union[str, CloudVolume],
+                           data: Optional[np.ndarray] = None,
+                           return_downsampled_data: bool = False) -> Optional[np.ndarray]:
     """
     Downsample the image data in a cloudvolume by a factor of 2 in x, y, and z.
 
-    If no data is provided, the data will be downloaded from the highest
-    currently available mip of the volume.
+    If the data argument is left as None, the cloudvolume's data will be
+    downloaded from the highest currently available mip (lowest resolution)
+    of the volume.
     If data is provided, it should be exactly equal to the data contained in
     the highest currently available mip of the volume, otherwise things will
     get weird.
-
-    If you want to downsample a few times without having to re-download the
-    data on each iteration, you can do something like:
+    The intended use of the data argument is if you want to downsample a few
+    times without having to re-download the data from the cloud on each
+    iteration, you should do something like:
     >>> vol.mip = vol.available_mips[-1]
     >>> data = vol[:]
     >>> for iteration in range(num_of_downsamplings):
@@ -88,7 +113,7 @@ def downsample_cloudvolume(vol: [CloudVolume, str], data=None, return_downsample
             raise ValueError(f'Expected data to have shape {vol.shape}, but'
                              f' it had shape {data.shape}.')
 
-        data_downsampled = npimage.operations.downsample(data, factor=2)
+        data_downsampled = npimage.downsample(data, factor=2)
 
         vol.mip += 1
         assert vol.mip == vol.available_mips[-1]
@@ -102,9 +127,10 @@ def downsample_cloudvolume(vol: [CloudVolume, str], data=None, return_downsample
         return data_downsampled
 
 
-def mesh_array(data: np.ndarray, threshold,
-               discard_small_components=False,
-               save_to_filename=None) -> trimesh.Trimesh or None:
+def mesh_array(data: np.ndarray,
+               threshold: float,
+               discard_small_components: bool = False,
+               save_to_filename: Optional[str] = None) -> Union[trimesh.Trimesh, None]:
     """
     Generate a mesh from a numpy array.
 
@@ -114,12 +140,17 @@ def mesh_array(data: np.ndarray, threshold,
         The array to mesh.
     threshold : float
         The threshold to use for the marching cubes algorithm.
-    discard_small_components : bool, optional
+    discard_small_components : bool, default False
         If True, only the single largest connected component of the mesh
         will be returned. Otherwise, the entire mesh will be returned.
     save_to_filename : str, optional
         If provided, the mesh will be saved to this file. Otherwise, the
         mesh will be returned.
+
+    Returns
+    -------
+    If save_to_filename is None, the mesh will be returned. Otherwise,
+    saves the mesh to the provided filename and returns None.
     """
     verts, faces, _, _ = skimage.measure.marching_cubes(data, threshold)
     mesh = trimesh.Trimesh(vertices=verts, faces=faces)
@@ -132,9 +163,11 @@ def mesh_array(data: np.ndarray, threshold,
         mesh.export(save_to_filename)
 
 
-def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
-                     discard_small_components=False,
-                     save_to_filename=None) -> trimesh.Trimesh or None:
+def mesh_cloudvolume(vol: Union[str, CloudVolume],
+                     threshold: float,
+                     mip: Optional[int] = None,
+                     discard_small_components: bool = False,
+                     save_to_filename: Optional[str] = None) -> Union[trimesh.Trimesh, None]:
     """
     Generate a mesh from a cloudvolume.
 
@@ -144,11 +177,11 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
         The cloudvolume to mesh. If a string is provided, it will be
         interpreted as the path to a cloudvolume.
     threshold : float
-        The threshold to use for the marching cubes algorithm.
+        The pixel intensity threshold to use for the marching cubes algorithm.
     mip : int, optional
         The mip level to use. If not provided, the highest available mip
-        will be used.
-    discard_small_components : bool, optional
+        (lowest resolution data) will be used.
+    discard_small_components : bool, default False
         If True, only the single largest connected component of the mesh
         will be returned. Otherwise, the entire mesh will be returned.
     save_to_filename : str, optional
@@ -157,8 +190,8 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
 
     Returns
     -------
-    If save_to_filename is None, the mesh will be returned. Otherwise, None
-    will be returned.
+    If save_to_filename is None, the mesh will be returned. Otherwise,
+    saves the mesh to the provided filename and returns None.
     """
     original_mip = None
     if isinstance(vol, str):
@@ -184,11 +217,11 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
     return mesh
 
 
-def push_mesh(mesh: str or trimesh.Trimesh or DracoPy.DracoMesh,
+def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
               mesh_id: int,
-              vol: CloudVolume or str,
+              vol: Union[str, CloudVolume],
               scale_by: float = 1,
-              compress=True):
+              compress: bool = True) -> None:
     """
     Upload a mesh representing the outline of some bit of an image volume
     to a cloudvolume that can be loaded alongside that image volume.
@@ -200,20 +233,30 @@ def push_mesh(mesh: str or trimesh.Trimesh or DracoPy.DracoMesh,
 
     Parameters
     ----------
-    mesh : str or trimesh.Trimesh or DracoPy.DracoMesh
-        The mesh to upload. If a string is provided, it will be interpreted
-        as the path to a mesh file.
+    mesh : str or a mesh object (Trimesh, DracoMesh, cloudvolume.mesh, etc)
+        If a string is provided, it will be interpreted as the path to
+        a mesh file on your computer and will be loaded using trimesh.load().
+        Otherwise, it must be a mesh object with both:
+        1) either a .vertices or .points attribute
+        2) a .faces attribute
+
     mesh_id : int
         The id of the mesh. This is the segment ID that will need to be entered
         into neuroglancer to load the mesh.
-    vol : CloudVolume or str
+
+    vol : str or CloudVolume
         The cloudvolume to upload the mesh to. If a string is provided, it will
         be interpreted as the path to a cloudvolume.
-    scale_by : float, optional
+
+    scale_by : float, default 1
         The scale factor to apply to the mesh before uploading it. This is
         useful if the mesh was generated from a downsampled version of the
         image volume, but you want to upload it to the full resolution image
         volume. The default is 1, which means no scaling will be applied.
+
+    compress : bool, default True
+        Whether or not to gzip the mesh file, reducing disk usage and network
+        bandwidth at the cost of a small amount of compute time.
     """
 
     if isinstance(vol, str):
