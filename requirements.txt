@@ -1,4 +1,4 @@
 cloud-volume
-igneous-pipeline
+trimesh
 numpyimage
 scikit-image
