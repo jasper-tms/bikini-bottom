@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import setuptools
 
 with open("README.md", "r") as fh:
@@ -9,7 +11,7 @@ with open("requirements.txt", "r") as f:
 
 setuptools.setup(
     name="bikinibottom",
-    version="0.0.1",
+    version="0.9.0",
     author="Jasper Phelps",
     author_email="jasper.s.phelps@gmail.com",
     description="Take pixels from a cloudvolume and push it somewhere else",
