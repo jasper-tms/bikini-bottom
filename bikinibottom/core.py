@@ -173,6 +173,8 @@ def mesh_cloudvolume(vol: CloudVolume or str, threshold, mip=None,
         mesh = mesh_array(data, threshold,
                           discard_small_components=discard_small_components,
                           save_to_filename=save_to_filename)
+        if save_to_filename is not None:
+            return save_to_filename
         # Scale vertex coordinates to use physical units (usually nanometers)
         mesh.vertices = mesh.vertices * vol.resolution
 
