@@ -222,7 +222,8 @@ def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
               mesh_id: int,
               vol: Union[str, CloudVolume],
               scale_by: float = 1,
-              compress: bool = True) -> None:
+              compress: bool = True,
+              overwrite: bool = False) -> None:
     """
     Upload a mesh representing the outline of some bit of an image volume
     to a cloudvolume that can be loaded alongside that image volume.
@@ -258,6 +259,9 @@ def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
     compress : bool, default True
         Whether or not to gzip the mesh file, reducing disk usage and network
         bandwidth at the cost of a small amount of compute time.
+
+    overwrite : bool, default False
+        Whether or not to overwrite an existing mesh with the same mesh_id.
     """
 
     if isinstance(vol, str):
@@ -284,6 +288,11 @@ def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
             vol.commit_info()
 
     assert vol.layer_type == 'segmentation'
+    if not overwrite:
+        if vol.mesh.exists([mesh_id], progress=False)[str(mesh_id)]:
+            raise FileExistsError(f'A mesh with id {mesh_id} already exists in'
+                                  f' the volume {vol.cloudpath}. If you want to'
+                                  ' overwrite it, set overwrite=True.')
 
     if isinstance(mesh, str):
         mesh = trimesh.load(mesh)
