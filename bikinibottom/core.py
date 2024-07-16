@@ -78,6 +78,7 @@ def compress_raw_cloudvolume(source_path: str,
 
 def downsample_cloudvolume(vol: Union[str, CloudVolume],
                            data: Optional[np.ndarray] = None,
+                           compress: bool = True,
                            return_downsampled_data: bool = False) -> Optional[np.ndarray]:
     """
     Downsample the image data in a cloudvolume by a factor of 2 in x, y, and z.
@@ -98,7 +99,7 @@ def downsample_cloudvolume(vol: Union[str, CloudVolume],
     """
     original_mip = None
     if isinstance(vol, str):
-        vol = CloudVolume(vol)
+        vol = CloudVolume(vol, compress=compress)
     elif hasattr(vol, 'mip'):
         original_mip = vol.mip
     vol.mip = vol.available_mips[-1]
