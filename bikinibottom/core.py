@@ -223,7 +223,8 @@ def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
               vol: Union[str, CloudVolume],
               scale_by: float = 1,
               compress: bool = True,
-              overwrite: bool = False) -> None:
+              overwrite: bool = False,
+              mesh_subfolder: str = 'mesh') -> None:
     """
     Upload a mesh representing the outline of some bit of an image volume
     to a cloudvolume that can be loaded alongside that image volume.
@@ -268,12 +269,12 @@ def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
         vol = CloudVolume(vol)
     if vol.layer_type == 'image':
         try:
-            vol = CloudVolume(vol.cloudpath + '/meshes')
+            vol = CloudVolume(vol.cloudpath + '/' + mesh_subfolder)
         except cloudvolume.exceptions.InfoUnavailableError:
             info = CloudVolume.create_new_info(
                 num_channels=vol.num_channels,
                 layer_type='segmentation',
-                mesh='meshes',
+                mesh=mesh_subfolder,
                 data_type='uint8',
                 encoding='raw',
                 resolution=vol.resolution,
@@ -284,7 +285,7 @@ def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
                 chunk_size=vol.volume_size,
                 volume_size=vol.volume_size,
             )
-            vol = CloudVolume(vol.cloudpath + '/meshes', info=info)
+            vol = CloudVolume(vol.cloudpath + '/' + mesh_subfolder, info=info)
             vol.commit_info()
 
     assert vol.layer_type == 'segmentation'
@@ -311,3 +312,6 @@ def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
         segid=mesh_id
     )
     vol.mesh.put(mesh, compress=compress)
+    if 'mesh' not in vol.info:
+        vol.info['mesh'] = mesh_subfolder
+        vol.commit_info()
