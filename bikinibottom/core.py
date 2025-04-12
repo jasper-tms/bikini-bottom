@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 from typing import Union, Optional
 
 import numpy as np
@@ -296,7 +297,10 @@ def push_mesh(mesh: Union[str, trimesh.Trimesh, cloudvolume.mesh.Mesh],
                                   ' overwrite it, set overwrite=True.')
 
     if isinstance(mesh, str):
-        mesh = trimesh.load(mesh)
+        if os.path.exists(mesh):
+            mesh = trimesh.load(mesh)
+        else:
+            raise FileNotFoundError(f'The file {mesh} does not exist.')
 
     if hasattr(mesh, 'vertices'):
         vertices = mesh.vertices
